@@ -1,0 +1,13 @@
+[Unit]
+Description=X8 MAVLink Router
+After=network.target
+
+[Service]
+Type=simple
+User=pi
+ExecStart=/home/pi/X8_Companion/services/x8_mavproxy_start.sh
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,34 @@
+{
+    "system": {
+        "drone_name": "X8-BVLOS-PRO",
+        "uav_zt_ip": "10.148.178.64",
+        "sysid_companion": 255,
+        "sysid_target": 1
+    },
+    "ntrip": {
+        "server": "system.asgeupos.pl",
+        "port": 2101,
+        "mount": "RTN4G_VRS_RTCM32",
+        "user": "SP4KDL/Jakub",
+        "pass": "franc111",
+        "gga_interval": 10,
+        "base_lat": 53.8558,
+        "base_lon": 20.2113,
+        "base_alt": 122.0
+    },
+    "mavlink": {
+        "fc_uart": "/dev/ttyAMA0",
+        "fc_baud": 921600,
+        "sik_uart": "/dev/ttyS0",
+        "sik_baud": 57600,
+        "gcs_local_ip": "192.168.1.115",
+        "gcs_zt_ip": "10.148.178.3",
+        "gcs_port": 14550
+    },
+    "lte_modem": {
+        "enabled": "false",
+        "device": "/dev/ttyUSB2",
+        "apn": "internet",
+        "pin": ""
+    }
+}
