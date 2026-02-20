@@ -1,0 +1,11 @@
+fastcrc==0.3.5
+future==1.0.0
+lxml==6.0.2
+MAVProxy==1.8.74
+numpy==2.4.2
+packaging==26.0
+pymavlink==2.4.49
+pynmeagps==1.1.0
+pyserial==3.5
+setuptools==82.0.0
+wheel==0.46.3
