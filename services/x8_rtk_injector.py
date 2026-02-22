@@ -1,62 +1,76 @@
 #!/usr/bin/env python3
-import socket, base64, time, json
+import json, socket, time, base64
 from pymavlink import mavutil
 
 CONFIG_PATH = "/home/pi/X8_Companion/config/X8_config.json"
 
-class RTKInjector:
-    def __init__(self):
-        with open(CONFIG_PATH, 'r') as f: self.cfg = json.load(f)
-        self.mav = mavutil.mavlink_connection('udpin:127.0.0.1:14551')
-        self.lat = self.cfg['ntrip']['base_lat']
-        self.lon = self.cfg['ntrip']['base_lon']
-        self.alt = self.cfg['ntrip']['base_alt']
+def get_nmea_gga(lat, lon, alt):
+    now = time.strftime("%H%M%S.00", time.gmtime())
+    lat_d = f"{abs(lat)//1:02.0f}{abs(lat)%1*60:07.4f}"
+    lat_n = 'N' if lat >= 0 else 'S'
+    lon_d = f"{abs(lon)//1:03.0f}{abs(lon)%1*60:07.4f}"
+    lon_e = 'E' if lon >= 0 else 'W'
+    msg = f"GPGGA,{now},{lat_d},{lat_n},{lon_d},{lon_e},1,12,1.0,{alt},M,0.0,M,,"
+    checksum = 0
+    for char in msg: checksum ^= ord(char)
+    return f"${msg}*{checksum:02X}\r\n"
 
-    def get_gga(self):
-        msg = self.mav.recv_match(type='GLOBAL_POSITION_INT', blocking=False)
-        if msg:
-            self.lat, self.lon, self.alt = msg.lat/1e7, msg.lon/1e7, msg.alt/1000
-        
-        now = time.gmtime()
-        ts = time.strftime("%H%M%S.00", now)
-        msg_str = f"GPGGA,{ts},{abs(int(self.lat))}{abs(self.lat-int(self.lat))*60:07.4f},{'N' if self.lat>0 else 'S'},{abs(int(self.lon)):03}{abs(self.lon-int(self.lon))*60:07.4f},{'E' if self.lon>0 else 'W'},1,12,1.0,{self.alt},M,0.0,M,,"
-        ck = 0
-        for c in msg_str: ck ^= ord(c)
-        return f"${msg_str}*{format(ck, '02X')}\r\n"
+def run_injector():
+    with open(CONFIG_PATH, 'r') as f: cfg = json.load(f)['ntrip']
+    
+    # Inicjalizacja polaczenia MAVLink do MAVProxy (port 14551)
+    print("Inicjalizacja MAVLink Connection...")
+    mav = mavutil.mavlink_connection('udpout:127.0.0.1:14551', source_system=255, source_component=250)
+    
+    auth = base64.b64encode(f"{cfg['user']}:{cfg['pass']}".encode()).decode()
+    last_nmea = 0
 
-    def run(self):
-        print(f"Start RTK Injector: {self.cfg['ntrip']['server']}")
-        while True:
-            try:
-                s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                s.settimeout(10)
-                s.connect((self.cfg['ntrip']['server'], self.cfg['ntrip']['port']))
+    while True:
+        try:
+            print(f"Laczenie z serwerem NTRIP: {cfg['server']}...")
+            sock = socket.socket(socket.getaddrinfo(cfg['server'], cfg['port'])[0][0], socket.SOCK_STREAM)
+            sock.settimeout(10)
+            sock.connect((cfg['server'], int(cfg['port'])))
+            
+            headers = (f"GET /{cfg['mount']} HTTP/1.0\r\n"
+                       f"User-Agent: NTRIP PythonClient\r\n"
+                       f"Authorization: Basic {auth}\r\n"
+                       f"Connection: close\r\n\r\n")
+            sock.sendall(headers.encode())
+
+            while True:
+                # Wysylaj pozycje GGA co 5 sekund do serwera NTRIP
+                if time.time() - last_nmea > 5:
+                    nmea = get_nmea_gga(cfg['base_lat'], cfg['base_lon'], cfg['base_alt'])
+                    sock.sendall(nmea.encode())
+                    last_nmea = time.time()
                 
-                auth_str = f"{self.cfg['ntrip']['user']}:{self.cfg['ntrip']['pass']}"
-                auth = base64.b64encode(auth_str.encode()).decode()
+                data = sock.recv(2048)
+                if not data: break
                 
-                headers = (
-                    f"GET /{self.cfg['ntrip']['mount']} HTTP/1.0\r\n"
-                    f"User-Agent: NTRIP X8\r\n"
-                    f"Authorization: Basic {auth}\r\n"
-                    f"Connection: close\r\n\r\n"
-                )
-                s.sendall(headers.encode())
-                
-                last_gga = 0
-                while True:
-                    if time.time() - last_gga > 10:
-                        s.sendall(self.get_gga().encode())
-                        last_gga = time.time()
+                # Pakowanie surowego RTCM w ramki MAVLink (GPS_RTCM_DATA)
+                # Max rozmiar danych w jednej ramce to 180 bajtow
+                length = len(data)
+                for i in range(0, length, 180):
+                    chunk = data[i:i+180]
+                    chunk_len = len(chunk)
+                    # Uzupelnienie zerami do 180 bajtow (wymog Mavlink)
+                    padding = b'\x00' * (180 - chunk_len)
                     
-                    data = s.recv(2048)
-                    if not data: break
-                    
-                    for i in range(0, len(data), 180):
-                        chunk = data[i:i+180]
-                        self.mav.mav.gps_rtcm_data_send(0, len(chunk), chunk.ljust(180, b'\0'))
-            except Exception as e:
-                print(f"Błąd: {e}"); time.sleep(5)
+                    mav.mav.gps_rtcm_data_send(
+                        0, # flags: 0 = brak fragmentacji lub prosta paczka
+                        chunk_len,
+                        chunk + padding
+                    )
+                
+                # Opcjonalnie: Wysylaj Heartbeat, aby MAVProxy widzialo Injector jako komponent 250
+                mav.mav.heartbeat_send(mavutil.mavlink.MAV_TYPE_GCS, mavutil.mavlink.MAV_AUTOPILOT_INVALID, 0, 0, 0)
+                
+                print(f"Przeslano do FC: {len(data)} bajtow (jako MAVLink)")
+                
+        except Exception as e:
+            print(f"Blad: {e}. Reconnect za 5s...")
+            time.sleep(5)
 
 if __name__ == "__main__":
-    RTKInjector().run()
+    run_injector()

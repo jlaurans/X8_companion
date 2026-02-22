@@ -1,47 +1,38 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-# Skrypt konfiguracyjny X8-BVLOS-PRO v1.1
-# Zarzadza NTRIP, MAVLink, Siecia i Zasilaniem
 
 import json, os, subprocess
 
-CONFIG_PATH = "/home/pi/drone-rtk-project/config/X8_config.json"
+CONFIG_PATH = "/home/pi/X8_Companion/config/X8_config.json"
 
 def load_config():
-    """Wczytuje ustawienia drona z pliku JSON."""
     with open(CONFIG_PATH, 'r', encoding='utf-8') as f: return json.load(f)
 
 def save_config(config):
-    """Zapisuje aktualne ustawienia do pliku JSON."""
     with open(CONFIG_PATH, 'w', encoding='utf-8') as f: json.dump(config, f, indent=4)
 
 def get_service_status(service):
-    """Sprawdza status uslug systemd (ActiveState)."""
     res = os.system(f"systemctl is-active --quiet {service}")
     return "RUNNING" if res == 0 else "STOPPED"
 
 def get_cpu_temp():
-    """Odczytuje temperature bezposrednio z sensora termicznego SoC."""
     try:
         with open("/sys/class/thermal/thermal_zone0/temp", "r") as f:
             return f"{float(f.read()) / 1000:.1f}C"
     except: return "N/A"
 
 def menu(title, options):
-    """Interfejs TUI oparty na whiptail (standard Raspberry Pi)."""
     cmd = ["whiptail", "--title", title, "--menu", "Wybierz:", "22", "78", "14"]
     for k, v in options.items(): cmd.extend([k, v])
     proc = subprocess.Popen(cmd, stderr=subprocess.PIPE)
     return proc.communicate()[1].decode('utf-8', 'ignore').strip()
 
 def input_box(title, prompt, default):
-    """Pobiera dane od uzytkownika. Cancel zwraca pusty string."""
     cmd = ["whiptail", "--title", title, "--inputbox", prompt, "10", "65", str(default)]
     proc = subprocess.Popen(cmd, stderr=subprocess.PIPE)
     return proc.communicate()[1].decode('utf-8', 'ignore').strip()
 
 def edit_ntrip():
-    """Konfiguracja klienta NTRIP dla poprawek RTK."""
     cfg = load_config()
     while True:
         opt = {
@@ -80,10 +71,8 @@ def edit_ntrip():
         save_config(cfg)
 
 def edit_network():
-    """Zarzadzanie adresami IP i testy lacznosci (ZeroTier/WiFi/LTE)."""
     cfg = load_config()
     while True:
-        # Grep -oP wyciaga tylko adres IP (regex lookbehind dla 'inet ')
         wifi_ip = subprocess.getoutput("ip -4 addr show wlan0 2>/dev/null | grep -oP '(?<=inet\\s)\\d+(\\.\\d+){3}'").strip()
         lte_ip = subprocess.getoutput("ip -4 addr show usb0 2>/dev/null | grep -oP '(?<=inet\\s)\\d+(\\.\\d+){3}'").strip()
         link_status = "LTE" if lte_ip else ("WIFI" if wifi_ip else "NONE")
@@ -122,7 +111,6 @@ def edit_network():
         save_config(cfg)
 
 def edit_system():
-    """Ustawienia portow szeregowych i identyfikatorow MAVLink."""
     cfg = load_config()
     while True:
         opt = {
