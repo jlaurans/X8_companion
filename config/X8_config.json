@@ -1,7 +1,6 @@
 {
     "system": {
         "drone_name": "X8-BVLOS-PRO",
-        "uav_zt_ip": "10.148.178.64",
         "sysid_companion": 255,
         "sysid_target": 1
     },
@@ -23,10 +22,11 @@
         "sik_baud": 57600,
         "gcs_local_ip": "192.168.1.115",
         "gcs_zt_ip": "10.148.178.3",
+        "uav_zt_ip": "10.148.178.67",
         "gcs_port": 14550
     },
     "lte_modem": {
-        "enabled": "false",
+        "enabled": "true",
         "device": "/dev/ttyUSB2",
         "apn": "internet",
         "pin": ""
