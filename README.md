@@ -2,29 +2,29 @@
 
 System komputera pokładowego dla drona X8, odpowiedzialny za telemetrię LTE, wstrzykiwanie poprawek RTK oraz monitoring linków komunikacyjnych.
 
-## Architektura Sprzetowa
-- **Komputer:** Raspberry Pi Zero 2 W
-- **Flight Controller:** Kakute H7 (ArduPilot)
-- **Polaczenie:** UART (@ttyAMA0) - Baud: 921600
-- **Link zapasowy:** SiK Radio 433MHz (bezposrednio do FC)
+## Architektura Sprzętowa
+* **Komputer:** Raspberry Pi Zero 2 W
+* **Flight Controller:** Kakute H7 (ArduPilot)
+* **GNSS:** Unicore UM982 (NebulasIV) + 2x Antena HA-901
+* **Połączenie FC-RPI:** UART (@ttyAMA0) - Baud: 921600
+* **Połączenie RPI-GNSS:** Adapter USB-TTL - Baud: 115200
+* **Link zapasowy:** SiK Radio 433MHz (bezpośrednio do FC)
 
 ## Konfiguracja Systemowa (OS)
-Pakiety zainstalowane systemowo:
-- git, usb-modeswitch, modemmanager, network-manager
+Pakiety zainstalowane systemowo: `git`, `usb-modeswitch`, `modemmanager`, `network-manager`.
 
-## Struktura Uslug (systemd)
-1. **x8_mavproxy.service**: Telemetria i routing MAVLink.
-2. **x8_rtk.service**: Wstrzykiwanie poprawek RTK.
-3. **x8_monitors.service**: Monitoring dostepnosci LTE i SiK.
+## Struktura Usług (systemd)
+* `x8_mavproxy.service`: Telemetria i routing MAVLink.
+* `x8_rtk.service`: Wstrzykiwanie poprawek RTK (NTRIP -> UM982).
+* `x8_monitors.service`: Monitoring dostępności LTE i SiK.
 
-## Konfiguracja MAVLink (MAVProxy)
-- Master: `/dev/ttyAMA0` (921600 baud)
-- GCS LTE: `10.148.178.3:14550`
-- GCS Local: `192.168.1.115:14550`
+## Moduł RTK (UM982)
+Kluczowe komendy konfiguracji (zgodnie z manualem N4 R1.13):
+* `CONFIG COM2 115200 8 N 1`
+* `CONFIG HEADING LENGTH 0.53 0.01`
+* `CONFIG RTK ANYSTATION ENABLE`
+* `SAVECONFIG`
 
-## Srodowisko Python
-Wymagane biblioteki znajduja sie w pliku `requirements.txt`.
-Instalacja: `pip install -r requirements.txt`
-
----
-*Aktualizacja: 2026-02-21*
+## Środowisko Python
+Instalacja wszystkich zależności (MavProxy + RTK):
+`pip install -r requirements.txt`
